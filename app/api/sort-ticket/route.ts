@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { classifyTicket } from "@/lib/classifier";
 import type {
   SortTicketRequest,
-  SortTicketResponse,
   ValidationError,
 } from "@/types";
 
