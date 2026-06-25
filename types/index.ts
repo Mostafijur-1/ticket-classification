@@ -14,9 +14,10 @@ export type Department =
   | "fraud_risk";
 
 export interface SortTicketRequest {
-  title?: string;
-  description: string;
-  customerEmail?: string;
+  ticket_id: string;
+  channel?: string;
+  locale?: string;
+  message: string;
 }
 
 export interface SortedTicket {
@@ -27,8 +28,8 @@ export interface SortedTicket {
   human_review_required: boolean;
 }
 
-export interface SortTicketResponse {
-  ticket: SortedTicket;
+export interface SortTicketResponse extends TicketClassification {
+  ticket_id: string;
 }
 
 export interface ValidationError {
