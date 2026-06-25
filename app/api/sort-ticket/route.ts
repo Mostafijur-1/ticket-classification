@@ -74,6 +74,6 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
-    ticket: classifyTicket(data),
+    ticket: await classifyTicket(data),
   });
 }

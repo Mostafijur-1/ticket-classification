@@ -1,16 +1,17 @@
-export enum TicketCategory {
-  Account = "account",
-  Billing = "billing",
-  General = "general",
-  Technical = "technical",
-}
+export type CaseType =
+  | "wrong_transfer"
+  | "payment_failed"
+  | "refund_request"
+  | "phishing_or_social_engineering"
+  | "other";
 
-export enum TicketPriority {
-  Low = "low",
-  Medium = "medium",
-  High = "high",
-  Urgent = "urgent",
-}
+export type Severity = "low" | "medium" | "high" | "critical";
+
+export type Department =
+  | "customer_support"
+  | "dispute_resolution"
+  | "payments_ops"
+  | "fraud_risk";
 
 export interface SortTicketRequest {
   title?: string;
@@ -19,11 +20,11 @@ export interface SortTicketRequest {
 }
 
 export interface SortedTicket {
-  category: TicketCategory;
-  priority: TicketPriority;
-  confidence: number;
-  reasons: string[];
-  routedTo: string;
+  case_type: CaseType;
+  severity: Severity;
+  department: Department;
+  agent_summary: string;
+  human_review_required: boolean;
 }
 
 export interface SortTicketResponse {
@@ -34,3 +35,4 @@ export interface ValidationError {
   field: string;
   message: string;
 }
+
