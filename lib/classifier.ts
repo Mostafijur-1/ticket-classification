@@ -156,27 +156,117 @@ function summarize(message: string, caseType: CaseType, severity: Severity) {
   return `Customer reports a ${caseType.replaceAll("_", " ")} issue: ${shortMessage}. Current severity is ${severity}.`;
 }
 
-function confidenceFor(caseScore: number, severity: Severity) {
-  const severityBoost = severity === "critical" ? 0.1 : 0;
-  return Math.min(
-    0.95,
-    Number((0.45 + caseScore * 0.18 + severityBoost).toFixed(2)),
-  );
+export async function classifyTicket(ticket: SortTicketRequest): Promise<SortedTicket> {
+  const text = ticket.message.trim();
+  const apiKey = process.env.GROQ_API_KEY;
+  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+
+  if (!apiKey) {
+    console.warn("WARNING: GROQ_API_KEY is not set. Falling back to rule-based mock classifier.");
+    const mock = getMockClassification(text);
+    const department = getDepartment(mock.case_type);
+    const human_review_required = mock.severity === "critical" || mock.case_type === "phishing_or_social_engineering";
+
+    return {
+      case_type: mock.case_type,
+      severity: mock.severity,
+      department,
+      agent_summary: mock.agent_summary,
+      human_review_required,
+      confidence: 1.0,
+    };
+  }
+
+  try {
+    const url = "https://api.groq.com/openai/v1/chat/completions";
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          {
+            role: "system",
+            content: `You are a ticket classification assistant. Analyze the customer support ticket and return a JSON object matching this schema:
+{
+  "case_type": "wrong_transfer" | "payment_failed" | "refund_request" | "phishing_or_social_engineering" | "other",
+  "severity": "low" | "medium" | "high" | "critical",
+  "agent_summary": "A 1-2 sentence neutral summary of the issue.",
+  "confidence": <number between 0.0 and 1.0 representing classification confidence>
 }
+IMPORTANT: Only return the raw JSON object, do not wrap it in markdown blocks or any conversational text.`
+          },
+          {
+            role: "user",
+            content: text
+          }
+        ],
+        response_format: {
+          type: "json_object"
+        },
+        temperature: 0.0
+      }),
+    });
 
-export function classifyTicket(message: string): TicketClassification {
-  const text = message.trim();
-  const caseMatch = detectCaseType(text);
-  const severity = detectSeverity(text, caseMatch.caseType);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API returned status ${response.status}: ${errorText}`);
+    }
 
-  return {
-    case_type: caseMatch.caseType,
-    severity,
-    department: mapDepartment(caseMatch.caseType),
-    agent_summary: summarize(text, caseMatch.caseType, severity),
-    human_review_required:
-      severity === "critical" ||
-      caseMatch.caseType === "phishing_or_social_engineering",
-    confidence: confidenceFor(caseMatch.score, severity),
-  };
+    const data = await response.json();
+    const resultText = data.choices?.[0]?.message?.content;
+
+    if (!resultText) {
+      throw new Error("No output content returned from Groq API");
+    }
+
+    const parsed = JSON.parse(resultText.trim());
+    
+    // Validate case_type
+    const validCaseTypes: CaseType[] = ["wrong_transfer", "payment_failed", "refund_request", "phishing_or_social_engineering", "other"];
+    const case_type = validCaseTypes.includes(parsed.case_type) ? (parsed.case_type as CaseType) : "other";
+
+    // Validate severity
+    const validSeverities: Severity[] = ["low", "medium", "high", "critical"];
+    const severity = validSeverities.includes(parsed.severity) ? (parsed.severity as Severity) : "low";
+
+    const agent_summary = (parsed.agent_summary as string) || "Customer support ticket query.";
+    
+    // Validate confidence
+    let confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0.85;
+    if (confidence < 0 || confidence > 1) {
+      confidence = 0.85;
+    }
+
+    const department = getDepartment(case_type);
+    const human_review_required = severity === "critical" || case_type === "phishing_or_social_engineering";
+
+    return {
+      case_type,
+      severity,
+      department,
+      agent_summary,
+      human_review_required,
+      confidence,
+    };
+  } catch (error) {
+    console.error("Error in classifyTicket via LLM:", error);
+    console.warn("Falling back to rule-based mock classifier.");
+    
+    const mock = getMockClassification(text);
+    const department = getDepartment(mock.case_type);
+    const human_review_required = mock.severity === "critical" || mock.case_type === "phishing_or_social_engineering";
+
+    return {
+      case_type: mock.case_type,
+      severity: mock.severity,
+      department,
+      agent_summary: mock.agent_summary,
+      human_review_required,
+      confidence: 0.5,
+    };
+  }
 }

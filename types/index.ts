@@ -29,6 +29,8 @@ export interface TicketClassification {
   confidence: number;
 }
 
+export type SortedTicket = TicketClassification;
+
 export interface SortTicketResponse extends TicketClassification {
   ticket_id: string;
 }
