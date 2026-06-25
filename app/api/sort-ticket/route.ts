@@ -138,7 +138,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ errors }, { status: 400 });
   }
 
-  return NextResponse.json({
-    ticket: await classifyTicket(data),
-  });
+  const classification = await classifyTicket(data);
+  const sanitizedSummary = sanitizeAgentSummary(classification.agent_summary);
+
+  const responseBody: SortTicketResponse = {
+    ticket_id: data.ticket_id,
+    case_type: classification.case_type,
+    severity: classification.severity,
+    department: classification.department,
+    agent_summary: sanitizedSummary,
+    human_review_required: classification.human_review_required,
+    confidence: classification.confidence,
+  };
+
+  return NextResponse.json(responseBody);
 }

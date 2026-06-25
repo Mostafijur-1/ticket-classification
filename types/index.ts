@@ -20,13 +20,16 @@ export interface SortTicketRequest {
   message: string;
 }
 
-export interface SortedTicket {
+export interface TicketClassification {
   case_type: CaseType;
   severity: Severity;
   department: Department;
   agent_summary: string;
   human_review_required: boolean;
+  confidence: number;
 }
+
+export type SortedTicket = TicketClassification;
 
 export interface SortTicketResponse extends TicketClassification {
   ticket_id: string;
